@@ -6,7 +6,12 @@ import os
 import io
 import random
 from csv import DictWriter
+
+import numpy as np
 from deap import base, creator, tools
+from lime.lime_tabular import LimeTabularExplainer
+from sklearn.ensemble import RandomForestRegressor
+
 from . import BASE_DIR
 from .utils import make_dirs_for_file, exist, load_instance, merge_rules
 
@@ -133,11 +138,20 @@ def mut_inverse_indexes(individual):
     individual[start:stop+1] = temp
     return (individual, )
 
+def predict_fitness(individuals, instance, unit_cost, init_cost, wait_cost, delay_cost):
+    fitnesses = []
+    for individual in individuals:
+        # Convert float keys to integer keys
+        individual = [int(round(i)) for i in individual]
+        fitness = eval_vrptw(individual, instance, unit_cost, init_cost, wait_cost, delay_cost)[0]
+        fitnesses.append(fitness)
+    return fitnesses
 
 def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_size, pop_size, \
-    cx_pb, mut_pb, n_gen, export_csv=False, customize_data=False):
+                cx_pb, mut_pb, n_gen, export_csv=False, customize_data=False):
     '''gavrptw.core.run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost,
         ind_size, pop_size, cx_pb, mut_pb, n_gen, export_csv=False, customize_data=False)'''
+
     if customize_data:
         json_data_dir = os.path.join(BASE_DIR, 'data', 'json_customize')
     else:
@@ -146,37 +160,55 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     instance = load_instance(json_file=json_file)
     if instance is None:
         return
+
+    # Initialize DEAP tools and operators
     creator.create('FitnessMax', base.Fitness, weights=(1.0, ))
     creator.create('Individual', list, fitness=creator.FitnessMax)
     toolbox = base.Toolbox()
-    # Attribute generator
     toolbox.register('indexes', random.sample, range(1, ind_size + 1), ind_size)
-    # Structure initializers
     toolbox.register('individual', tools.initIterate, creator.Individual, toolbox.indexes)
     toolbox.register('population', tools.initRepeat, list, toolbox.individual)
-    # Operator registering
     toolbox.register('evaluate', eval_vrptw, instance=instance, unit_cost=unit_cost, \
-        init_cost=init_cost, wait_cost=wait_cost, delay_cost=delay_cost)
+                     init_cost=init_cost, wait_cost=wait_cost, delay_cost=delay_cost)
     toolbox.register('select', tools.selRoulette)
     toolbox.register('mate', cx_partially_matched)
     toolbox.register('mutate', mut_inverse_indexes)
+
     pop = toolbox.population(n=pop_size)
-    # Results holders for exporting results to CSV file
     csv_data = []
     print('Start of evolution')
+
+    # Collect data for LIME
+    X = []
+    y = []
+
     # Evaluate the entire population
     fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
-    print(f'  Evaluated {len(pop)} individuals')
+        X.append(ind)  # Collect individuals for model training
+        y.append(fit[0])  # Collect fitness for model training
+
+    # Convert collected data to numpy arrays
+    X_np = np.array([list(ind) for ind in X])
+    y_np = np.array(y)
+
+    # Train a model for LIME explanations
+    model = RandomForestRegressor()
+    model.fit(X_np, y_np)
+
+    # Initialize LIME explainer
+    explainer = LimeTabularExplainer(
+        training_data=X_np,
+        feature_names=[f'Customer {i}' for i in range(ind_size)],
+        mode='regression'
+    )
+
     # Begin the evolution
     for gen in range(n_gen):
         print(f'-- Generation {gen} --')
-        # Select the next generation individuals
         offspring = toolbox.select(pop, len(pop))
-        # Clone the selected individuals
         offspring = list(map(toolbox.clone, offspring))
-        # Apply crossover and mutation on the offspring
         for child1, child2 in zip(offspring[::2], offspring[1::2]):
             if random.random() < cx_pb:
                 toolbox.mate(child1, child2)
@@ -186,15 +218,12 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
             if random.random() < mut_pb:
                 toolbox.mutate(mutant)
                 del mutant.fitness.values
-        # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
         fitnesses = map(toolbox.evaluate, invalid_ind)
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
         print(f'  Evaluated {len(invalid_ind)} individuals')
-        # The population is entirely replaced by the offspring
         pop[:] = offspring
-        # Gather all the fitnesses in one list and print the stats
         fits = [ind.fitness.values[0] for ind in pop]
         length = len(pop)
         mean = sum(fits) / length
@@ -204,7 +233,6 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
         print(f'  Max {max(fits)}')
         print(f'  Avg {mean}')
         print(f'  Std {std}')
-        # Write data to holders for exporting results to CSV file
         if export_csv:
             csv_row = {
                 'generation': gen,
@@ -215,15 +243,29 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
                 'std_fitness': std,
             }
             csv_data.append(csv_row)
+
     print('-- End of (successful) evolution --')
     best_ind = tools.selBest(pop, 1)[0]
     print(f'Best individual: {best_ind}')
     print(f'Fitness: {best_ind.fitness.values[0]}')
     print_route(ind2route(best_ind, instance))
     print(f'Total cost: {1 / best_ind.fitness.values[0]}')
+
+    # Generate explanation for the best individual
+    best_ind_np = np.array([list(best_ind)])
+    def lime_predict_fn(X):
+        return np.array(predict_fitness([list(x) for x in X], instance, unit_cost, init_cost, wait_cost, delay_cost))
+
+    explanation = explainer.explain_instance(best_ind_np[0], lime_predict_fn)
+    #explanation.show_in_notebook()  # or use explanation.as_html() to save as HTML
+    explanation_html = explanation.as_html()
+    explanation_html_file_path = os.path.join(BASE_DIR, 'results', 'lime_explanation.html')
+    with open(explanation_html_file_path, 'w', encoding='utf-8') as f:
+        f.write(explanation_html)
+
     if export_csv:
         csv_file_name = f'{instance_name}_uC{unit_cost}_iC{init_cost}_wC{wait_cost}' \
-            f'_dC{delay_cost}_iS{ind_size}_pS{pop_size}_cP{cx_pb}_mP{mut_pb}_nG{n_gen}.csv'
+                        f'_dC{delay_cost}_iS{ind_size}_pS{pop_size}_cP{cx_pb}_mP{mut_pb}_nG{n_gen}.csv'
         csv_file = os.path.join(BASE_DIR, 'results', csv_file_name)
         print(f'Write to file: {csv_file}')
         make_dirs_for_file(path=csv_file)
