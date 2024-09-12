@@ -149,6 +149,62 @@ def predict_fitness(individuals, instance, unit_cost, init_cost, wait_cost, dela
         fitnesses.append(fitness)
     return fitnesses
 
+def generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost, wait_cost, delay_cost, ind_size, output_path):
+    '''Generate LIME explanation for the best individual'''
+    explainer = LimeTabularExplainer(
+        training_data=X_np,
+        feature_names=[f'Customer {i}' for i in range(ind_size)],
+        mode='regression'
+    )
+
+    # Define the prediction function for LIME
+    def lime_predict_fn(X):
+        return np.array(predict_fitness([list(x) for x in X], instance, unit_cost, init_cost, wait_cost, delay_cost))
+
+    # Get LIME explanation for the best individual
+    explanation = explainer.explain_instance(best_ind_np[0], lime_predict_fn)
+
+    # Save LIME explanation to HTML
+    explanation_html = explanation.as_html()
+    explanation_html_file_path = os.path.join(output_path, 'lime_explanation.html')
+    with open(explanation_html_file_path, 'w', encoding='utf-8') as f:
+        f.write(explanation_html)
+    print(f'LIME explanation saved to {explanation_html_file_path}')
+
+
+def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path):
+    '''Generate SHAP explanations for the best individual and the entire dataset'''
+    shap_explainer = shap.TreeExplainer(model)
+
+    # Local SHAP explanation for the best individual
+    shap_values_best = shap_explainer.shap_values(best_ind_np)
+
+    # Save SHAP force plot as HTML
+    shap_html_file_path = os.path.join(output_path, 'shap_explanation.html')
+    shap.force_plot(shap_explainer.expected_value, shap_values_best, best_ind_np,
+                    feature_names=[f'Customer {i}' for i in range(ind_size)])
+
+    # Save SHAP force plot to HTML
+    shap.save_html(shap_html_file_path, shap.force_plot(
+        shap_explainer.expected_value,
+        shap_values_best,
+        best_ind_np,
+        feature_names=[f'Customer {i}' for i in range(ind_size)]
+    ))
+    print(f'SHAP explanation saved to {shap_html_file_path}')
+
+    # Global SHAP feature importance plot
+    shap_values = shap_explainer.shap_values(X_np)
+
+    # Plot and save global SHAP feature importance
+    plt.figure()
+    shap.summary_plot(shap_values, X_np, feature_names=[f'Customer {i}' for i in range(ind_size)])
+    shap_summary_plot_path = os.path.join(output_path, 'shap_summary_plot.png')
+    plt.savefig(shap_summary_plot_path)
+    plt.close()
+    print(f'SHAP summary plot saved to {shap_summary_plot_path}')
+
+
 def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_size, pop_size, \
                 cx_pb, mut_pb, n_gen, export_csv=False, customize_data=False):
     '''gavrptw.core.run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost,
@@ -180,7 +236,7 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     csv_data = []
     print('Start of evolution')
 
-    # Collect data for LIME
+    # Collect data for LIME and SHAP
     X = []
     y = []
 
@@ -198,16 +254,6 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     # Train a model for LIME and SHAP explanations
     model = RandomForestRegressor()
     model.fit(X_np, y_np)
-
-    # Initialize LIME explainer
-    explainer = LimeTabularExplainer(
-        training_data=X_np,
-        feature_names=[f'Customer {i}' for i in range(ind_size)],
-        mode='regression'
-    )
-
-    #Initialize SHAP explainer
-    shap_explainer = shap.TreeExplainer(model)
 
     # Begin the evolution
     for gen in range(n_gen):
@@ -256,44 +302,12 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     print_route(ind2route(best_ind, instance))
     print(f'Total cost: {1 / best_ind.fitness.values[0]}')
 
-    # SHAP explanations for the best individual
+    # Save LIME and SHAP explanations
+    output_path = os.path.join(BASE_DIR, 'results')
     best_ind_np = np.array([list(best_ind)])
 
-    # SHAP explanation for the best individual (local explanation)
-    shap_values_best = shap_explainer.shap_values(best_ind_np)
-
-    # Save SHAP force plot as HTML for the best individual
-    shap_html_file_path = os.path.join(BASE_DIR, 'results', 'shap_explanation.html')
-    shap.force_plot(shap_explainer.expected_value, shap_values_best, best_ind_np,
-                    feature_names=[f'Customer {i}' for i in range(ind_size)])
-
-    # Save as HTML
-    shap.save_html(shap_html_file_path, shap.force_plot(
-        shap_explainer.expected_value,
-        shap_values_best,
-        best_ind_np,
-        feature_names=[f'Customer {i}' for i in range(ind_size)]
-    ))
-
-    # Generate global SHAP feature importance plot
-    shap_values = shap_explainer.shap_values(X_np)
-
-    # Plot global feature importance and save it
-    plt.figure()
-    shap.summary_plot(shap_values, X_np, feature_names=[f'Customer {i}' for i in range(ind_size)])
-    shap_summary_plot_path = os.path.join(BASE_DIR, 'results', 'shap_summary_plot.png')
-    plt.savefig(shap_summary_plot_path)
-    plt.close()
-
-    # Explanation for LIME (already present in previous code)
-    def lime_predict_fn(X):
-        return np.array(predict_fitness([list(x) for x in X], instance, unit_cost, init_cost, wait_cost, delay_cost))
-
-    explanation = explainer.explain_instance(best_ind_np[0], lime_predict_fn)
-    explanation_html = explanation.as_html()
-    explanation_html_file_path = os.path.join(BASE_DIR, 'results', 'lime_explanation.html')
-    with open(explanation_html_file_path, 'w', encoding='utf-8') as f:
-        f.write(explanation_html)
+    generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path)
+    generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost, wait_cost, delay_cost, ind_size, output_path)
 
     if export_csv:
         csv_file_name = f'{instance_name}_uC{unit_cost}_iC{init_cost}_wC{wait_cost}' \
