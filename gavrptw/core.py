@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 '''gavrptw/core.py'''
-
+import itertools
 import os
 import io
 import random
@@ -174,19 +174,22 @@ def plot_routes(instance, best_ind, output_path):
         labels.append(key.split('_')[1])  # Extract only the numeric part of the customer key
         customer_indices[index] = len(coordinates) - 1  # Map index to coordinates
 
-    # Plot the routes
-    plt.figure(figsize=(18, 12))  # Increase figure size for better spacing
+    # Increase the plot size for better visibility (Change size to 24x18 inches)
+    plt.figure(figsize=(24, 18))  # Increased the size to 24x18 inches
 
     # Plot depot
-    plt.scatter(*zip(*coordinates[:1]), color='red', label='Depot', s=150, zorder=5)
+    plt.scatter(*zip(*coordinates[:1]), color='red', label='Depot', s=200, zorder=5)
 
     # Plot customers
-    plt.scatter(*zip(*coordinates[1:]), color='blue', label='Customers', s=70, zorder=5)
+    plt.scatter(*zip(*coordinates[1:]), color='blue', label='Customers', s=100, zorder=5)
 
-    # Assign a random color to each vehicle route
-    colors = plt.cm.get_cmap('tab10', len(routes))  # Use 'tab10' colormap for distinct colors
+    # Define a custom color palette
+    custom_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
-    # Step 2: Plot each vehicle's route using sub-routes from ind2route
+    # Use itertools.cycle to repeat the colors if the number of routes exceeds the number of custom colors
+    color_cycle = itertools.cycle(custom_colors)
+
+    # Plot each vehicle's route using sub-routes from ind2route
     for i, route in enumerate(routes):
         route_coords = [coordinates[0]]  # Start at the depot (index 0)
         for customer_id in route:
@@ -196,27 +199,31 @@ def plot_routes(instance, best_ind, output_path):
             route_coords.append(coordinates[customer_indices[customer_id]])
         route_coords.append(coordinates[0])  # End back at the depot
 
+        # Get the next color from the cycle
+        color = next(color_cycle)
+
         # Draw lines connecting the points along the route with transparency
-        plt.plot(*zip(*route_coords), marker='o', color=colors(i), linestyle='-', linewidth=2,
-                 label=f'Vehicle {i + 1}', alpha=0.7, zorder=3)
+        plt.plot(*zip(*route_coords), marker='o', color=color, linestyle='-', linewidth=3,
+                 label=f'Vehicle {i + 1}', alpha=0.8, zorder=3)
 
     # Add labels for the depot and customers with offsets to avoid overlapping
     label_offset_x, label_offset_y = 1.5, 1.5  # Adjust the label offset as necessary
     for i, label in enumerate(labels):
         plt.text(coordinates[i][0] + label_offset_x, coordinates[i][1] + label_offset_y,
-                 label, fontsize=9, ha='right', zorder=6)
+                 label, fontsize=12, ha='right', zorder=6)  # Increased font size for better visibility
 
-    plt.xlabel('X Coordinate')
-    plt.ylabel('Y Coordinate')
-    plt.title('Finalised Vehicle Routes')
-    plt.legend()
+    plt.xlabel('X Coordinate', fontsize=14)
+    plt.ylabel('Y Coordinate', fontsize=14)
+    plt.title('Vehicle Routes with Customer Connections', fontsize=16)
+    plt.legend(fontsize=12)
     plt.grid(True)
 
+    # Set the DPI (resolution) of the output image for better quality
     route_image_filename = 'route_image.png'
     route_image_path = os.path.join(output_path, route_image_filename)
 
-    # Save the plot
-    plt.savefig(route_image_path)
+    # Save the plot with higher DPI (e.g., 300 for high resolution)
+    plt.savefig(route_image_path, dpi=300)
     plt.close()  # Close the plot to avoid display if not needed
 
     # Return the path of the saved image
