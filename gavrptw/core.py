@@ -150,7 +150,7 @@ def predict_fitness(individuals, instance, unit_cost, init_cost, wait_cost, dela
     return fitnesses
 
 def plot_routes(instance, best_ind, output_path):
-    # Step 1: Use ind2route to generate sub-routes for each vehicle
+    # Use ind2route to generate sub-routes for each vehicle
     routes = ind2route(best_ind, instance)
 
     # Extract customers from the instance based on keys starting with 'customer_'
@@ -171,17 +171,17 @@ def plot_routes(instance, best_ind, output_path):
     customer_indices = {}
     for index, (key, value) in enumerate(customers.items(), start=1):  # Start from 1 assuming depot is 0
         coordinates.append((value['coordinates']['x'], value['coordinates']['y']))
-        labels.append(key)
+        labels.append(key.split('_')[1])  # Extract only the numeric part of the customer key
         customer_indices[index] = len(coordinates) - 1  # Map index to coordinates
 
     # Plot the routes
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(18, 12))  # Increase figure size for better spacing
 
     # Plot depot
-    plt.scatter(*zip(*coordinates[:1]), color='red', label='Depot', s=100)
+    plt.scatter(*zip(*coordinates[:1]), color='red', label='Depot', s=150, zorder=5)
 
     # Plot customers
-    plt.scatter(*zip(*coordinates[1:]), color='blue', label='Customers', s=50)
+    plt.scatter(*zip(*coordinates[1:]), color='blue', label='Customers', s=70, zorder=5)
 
     # Assign a random color to each vehicle route
     colors = plt.cm.get_cmap('tab10', len(routes))  # Use 'tab10' colormap for distinct colors
@@ -196,16 +196,19 @@ def plot_routes(instance, best_ind, output_path):
             route_coords.append(coordinates[customer_indices[customer_id]])
         route_coords.append(coordinates[0])  # End back at the depot
 
-        # Draw lines connecting the points along the route with a unique color per vehicle
-        plt.plot(*zip(*route_coords), marker='o', color=colors(i), linestyle='-', linewidth=2, label=f'Vehicle {i + 1}')
+        # Draw lines connecting the points along the route with transparency
+        plt.plot(*zip(*route_coords), marker='o', color=colors(i), linestyle='-', linewidth=2,
+                 label=f'Vehicle {i + 1}', alpha=0.7, zorder=3)
 
-    # Add labels for the depot and customers
+    # Add labels for the depot and customers with offsets to avoid overlapping
+    label_offset_x, label_offset_y = 1.5, 1.5  # Adjust the label offset as necessary
     for i, label in enumerate(labels):
-        plt.text(coordinates[i][0], coordinates[i][1], label, fontsize=9, ha='right')
+        plt.text(coordinates[i][0] + label_offset_x, coordinates[i][1] + label_offset_y,
+                 label, fontsize=9, ha='right', zorder=6)
 
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
-    plt.title('Vehicle Routes with Customer Connections')
+    plt.title('Finalised Vehicle Routes')
     plt.legend()
     plt.grid(True)
 
