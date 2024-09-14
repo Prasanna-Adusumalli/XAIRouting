@@ -150,25 +150,14 @@ def predict_fitness(individuals, instance, unit_cost, init_cost, wait_cost, dela
     return fitnesses
 
 def plot_routes(instance, best_ind, output_path):
+    # Step 1: Use ind2route to generate sub-routes for each vehicle
+    routes = ind2route(best_ind, instance)
+
     # Extract customers from the instance based on keys starting with 'customer_'
     customers = {key: value for key, value in instance.items() if key.startswith('customer_')}
 
-    # Check if there's an implicit depot node (node 0)
-    depot_node = 'node_0'
-    if depot_node not in instance:
-        print("Warning: No explicit depot found. Assuming node 0 as the depot.")
-        depot = {
-            "coordinates": {"x": 0.0, "y": 0.0},  # Default values or you can set actual coordinates
-            "demand": 0.0,
-            "due_time": 0.0,
-            "ready_time": 0.0,
-            "service_time": 0.0
-        }
-    else:
-        depot = instance[depot_node]
-
-    # Print depot information (for debugging)
-    print("Depot information:", depot)
+    # Extract depot details
+    depot = instance['depart']
 
     # Extract coordinates for depot and customers
     coordinates = []
@@ -189,27 +178,34 @@ def plot_routes(instance, best_ind, output_path):
     plt.figure(figsize=(10, 8))
 
     # Plot depot
-    plt.scatter(*zip(*coordinates), color='red', label='Depot')
+    plt.scatter(*zip(*coordinates[:1]), color='red', label='Depot', s=100)
 
     # Plot customers
-    plt.scatter(*zip(*coordinates[1:]), color='blue', label='Customers')
+    plt.scatter(*zip(*coordinates[1:]), color='blue', label='Customers', s=50)
 
-    # Plot routes
-    for route in best_ind:
-        if isinstance(route, int):  # If route is just a single index
-            route_coords = [coordinates[route]]
-            plt.plot(*zip(*route_coords), marker='o', color='green')
-        else:  # Route is a list of indices
-            route_coords = [coordinates[customer_indices[i]] for i in route]
-            plt.plot(*zip(*route_coords), marker='o')
+    # Assign a random color to each vehicle route
+    colors = plt.cm.get_cmap('tab10', len(routes))  # Use 'tab10' colormap for distinct colors
 
-    # Add labels
+    # Step 2: Plot each vehicle's route using sub-routes from ind2route
+    for i, route in enumerate(routes):
+        route_coords = [coordinates[0]]  # Start at the depot (index 0)
+        for customer_id in route:
+            if customer_id not in customer_indices:
+                print(f"Error: Customer ID {customer_id} not found in customer_indices.")
+                continue
+            route_coords.append(coordinates[customer_indices[customer_id]])
+        route_coords.append(coordinates[0])  # End back at the depot
+
+        # Draw lines connecting the points along the route with a unique color per vehicle
+        plt.plot(*zip(*route_coords), marker='o', color=colors(i), linestyle='-', linewidth=2, label=f'Vehicle {i + 1}')
+
+    # Add labels for the depot and customers
     for i, label in enumerate(labels):
         plt.text(coordinates[i][0], coordinates[i][1], label, fontsize=9, ha='right')
 
     plt.xlabel('X Coordinate')
     plt.ylabel('Y Coordinate')
-    plt.title('Routes')
+    plt.title('Vehicle Routes with Customer Connections')
     plt.legend()
     plt.grid(True)
 
@@ -222,7 +218,6 @@ def plot_routes(instance, best_ind, output_path):
 
     # Return the path of the saved image
     return route_image_path
-
 
 def generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost, wait_cost, delay_cost, ind_size, output_path):
     '''Generate LIME explanation for the best individual'''
