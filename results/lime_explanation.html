@@ -37089,25 +37089,25 @@
 /***/ })
 /******/ ]);
 //# sourceMappingURL=bundle.js.map </script></head><body>
-        <div class="lime top_div" id="top_div3YGBOUANO56K1TJ"></div>
+        <div class="lime top_div" id="top_div3WHJQ7SO2IDDXIP"></div>
         
         <script>
-        var top_div = d3.select('#top_div3YGBOUANO56K1TJ').classed('lime top_div', true);
+        var top_div = d3.select('#top_div3WHJQ7SO2IDDXIP').classed('lime top_div', true);
         
         
                     var pp_div = top_div.append('div')
                                         .classed('lime predicted_value', true);
                     var pp_svg = pp_div.append('svg').style('width', '100%');
-                    var pp = new lime.PredictedValue(pp_svg, 1.7273768816679748e-05, 1.4261185468024452e-05, 1.731209308118722e-05);
+                    var pp = new lime.PredictedValue(pp_svg, 1.3950896728165869e-05, 1.2179433601150546e-05, 1.4701638615930496e-05);
                     
         var exp_div;
             var exp = new lime.Explanation(["negative", "positive"]);
         
             exp_div = top_div.append('div').classed('lime explanation', true);
-            exp.show([["4.00 < Feature 7 <= 5.00", -2.697180244950932e-07], ["4006.61 < Feature 4 <= 4136.00", -1.6596925646474482e-07], ["40.47 < Feature 5 <= 41.78", -1.0277663571848746e-07], ["88.48 < Feature 6 <= 91.79", 7.307465126838712e-08], ["Feature 8 <= 0.00", 0.0], ["Feature 9 <= 700.00", 0.0], ["Feature 10 <= 25.00", 0.0], ["Feature 0 <= 1810.00", 0.0], ["Feature 1 <= 9000.00", 0.0], ["Feature 2 <= 39959.00", 0.0], ["Feature 3 <= 289217.00", 0.0]], 1, exp_div);
+            exp.show([["Average Distance per Customer <= 38.50", 2.3277230419391316e-07], ["Total Route Distance <= 3811.50", 2.1183150452767978e-07], ["Max Distance <= 85.33", -6.712746485615702e-08], ["Min Distance > 3.00", 4.700246173343249e-08], ["Total Demand <= 1810.00", 0.0], ["Total Service Time <= 9000.00", 0.0], ["Total Ready Time <= 42680.00", 0.0], ["Total Due Time <= 48756.00", 0.0], ["Time Window Violations <= 0.00", 0.0], ["Vehicle Capacity <= 200.00", 0.0], ["Max Vehicle Number <= 5.00", 0.0]], 1, exp_div);
             
         var raw_div = top_div.append('div');
-            exp.show_raw_tabular([["Feature 7", "5.00", -2.697180244950932e-07], ["Feature 4", "4051.10", -1.6596925646474482e-07], ["Feature 5", "40.92", -1.0277663571848746e-07], ["Feature 6", "89.19", 7.307465126838712e-08], ["Feature 8", "0.00", 0.0], ["Feature 9", "700.00", 0.0], ["Feature 10", "25.00", 0.0], ["Feature 0", "1810.00", 0.0], ["Feature 1", "9000.00", 0.0], ["Feature 2", "39959.00", 0.0], ["Feature 3", "289217.00", 0.0]], 1, raw_div);
+            exp.show_raw_tabular([["Average Distance per Customer", "36.13", 2.3277230419391316e-07], ["Total Route Distance", "3576.49", 2.1183150452767978e-07], ["Max Distance", "79.06", -6.712746485615702e-08], ["Min Distance", "3.61", 4.700246173343249e-08], ["Total Demand", "1810.00", 0.0], ["Total Service Time", "9000.00", 0.0], ["Total Ready Time", "42680.00", 0.0], ["Total Due Time", "48756.00", 0.0], ["Time Window Violations", "0.00", 0.0], ["Vehicle Capacity", "200.00", 0.0], ["Max Vehicle Number", "5.00", 0.0]], 1, raw_div);
         
         </script>
         </body></html>

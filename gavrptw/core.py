@@ -230,9 +230,9 @@ def plot_routes(instance, best_ind, output_path):
     # Return the path of the saved image
     return route_image_path
 
-def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path):
+def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path, feature_names):
     """
-    Generates LIME explanations and saves the explanation plot as an image.
+    Generates LIME explanations and saves the explanation plot as an image and HTML file.
     """
 
     # Check if best_ind_np is a single sample and reshape if necessary
@@ -240,13 +240,9 @@ def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path):
         print(f"Reshaping best_ind_np from {best_ind_np.shape} to (1, {best_ind_np.shape[0]})")
         best_ind_np = best_ind_np.reshape(1, -1)
 
-    # Generate feature names based on the number of features in X_np (assuming feature count matches)
-    feature_names = [f'Feature {i}' for i in range(X_np.shape[1])]
-
     # Ensure feature names match the number of columns in X_np
     if X_np.shape[1] != len(feature_names):
-        print(f"Adjusting feature names length to match X_np features")
-        feature_names = feature_names[:X_np.shape[1]]
+        raise ValueError(f"Mismatch: feature_names has {len(feature_names)} elements, but X_np has {X_np.shape[1]} features")
 
     # LIME expects 2D data, so ensure best_ind_np is in the right shape (1 sample, N features)
     if best_ind_np.shape[1] != X_np.shape[1]:
@@ -273,8 +269,8 @@ def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path):
     )
 
     # Save the LIME explanation plot as an image
-    plt.figure()
     explanation.save_to_file(f'{output_path}/lime_explanation.html')  # Save interactive HTML
+    plt.figure()
     explanation.as_pyplot_figure()  # Generate the plot
     lime_plot_path = f"{output_path}/lime_explanation_plot.png"
     plt.savefig(lime_plot_path)
@@ -283,7 +279,8 @@ def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path):
     # Return paths to the saved files
     return lime_plot_path
 
-def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path):
+
+def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path, feature_names):
     """
     Generates SHAP explanations and saves the summary plot as an image.
     """
@@ -299,21 +296,11 @@ def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path):
     print(f"Generating SHAP values for input with shape: {best_ind_np.shape}")
     shap_values = explainer(best_ind_np)
 
-    # Assuming feature_names is derived from X_np
-    feature_names = [f'Feature {i}' for i in range(X_np.shape[1])]
-
-    # Debugging prints to ensure everything aligns correctly
-    print(f"SHAP Values Shape: {shap_values.shape}")
-    print(f"X_np Shape: {X_np.shape}")
-    print(f"Feature Names Length: {len(feature_names)}")
-
     # Ensure feature names match X_np's features
     if X_np.shape[1] != len(feature_names):
-        print(f"Adjusting feature names length to match X_np features")
-        feature_names = feature_names[:X_np.shape[1]]  # Adjust to the correct length
+        raise ValueError(f"Mismatch: feature_names has {len(feature_names)} elements, but X_np has {X_np.shape[1]} features")
 
     # SHAP expects the number of rows in `X_np` to match the number of SHAP values' rows
-    # Check and raise an error if there's a mismatch
     assert X_np.shape[1] == best_ind_np.shape[1], \
         f"Feature mismatch: X_np has {X_np.shape[1]} features but best_ind_np has {best_ind_np.shape[1]} features!"
 
@@ -369,10 +356,9 @@ def extract_features(ind, instance):
     ]
 
 
-def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_size, pop_size, \
+def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_size, pop_size,
                 cx_pb, mut_pb, n_gen, export_csv=False, customize_data=False):
-    '''gavrptw.core.run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost,
-        ind_size, pop_size, cx_pb, mut_pb, n_gen, export_csv=False, customize_data=False)'''
+    '''Run the genetic algorithm for the VRPTW problem and generate LIME/SHAP explanations.'''
 
     if customize_data:
         json_data_dir = os.path.join(BASE_DIR, 'data', 'json_customize')
@@ -390,7 +376,7 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     toolbox.register('indexes', random.sample, range(1, ind_size + 1), ind_size)
     toolbox.register('individual', tools.initIterate, creator.Individual, toolbox.indexes)
     toolbox.register('population', tools.initRepeat, list, toolbox.individual)
-    toolbox.register('evaluate', eval_vrptw, instance=instance, unit_cost=unit_cost, \
+    toolbox.register('evaluate', eval_vrptw, instance=instance, unit_cost=unit_cost,
                      init_cost=init_cost, wait_cost=wait_cost, delay_cost=delay_cost)
     toolbox.register('select', tools.selRoulette)
     toolbox.register('mate', cx_partially_matched)
@@ -421,6 +407,22 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     # Train a model for LIME and SHAP explanations
     model = RandomForestRegressor()
     model.fit(X_np, y_np)
+
+    # **Extract feature names dynamically based on the extracted features**:
+    # We will use the names from the `extract_features` function
+    feature_names = [
+        'Total Demand',
+        'Total Service Time',
+        'Total Ready Time',
+        'Total Due Time',
+        'Total Route Distance',
+        'Average Distance per Customer',
+        'Max Distance',
+        'Min Distance',
+        'Time Window Violations',
+        'Vehicle Capacity',
+        'Max Vehicle Number'
+    ]
 
     # Begin the evolution
     for gen in range(n_gen):
@@ -476,11 +478,9 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     # Save the final routes plot
     route_image_path = plot_routes(instance, best_ind, output_path)
 
-    # Generate SHAP and LIME explanations
-    shap_summary_plot_path = generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path)
-
-    # Adjust generate_lime_explanation call to match the correct signature
-    lime_plot_path = generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path)
+    # **Generate SHAP and LIME explanations using feature names**
+    shap_summary_plot_path = generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path, feature_names)
+    lime_plot_path = generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path, feature_names)
 
     if export_csv:
         csv_file_name = f'{instance_name}_uC{unit_cost}_iC{init_cost}_wC{wait_cost}' \
