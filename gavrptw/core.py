@@ -7,6 +7,7 @@ import io
 import random
 from csv import DictWriter
 
+import lime
 import numpy as np
 import shap
 from deap import base, creator, tools
@@ -229,63 +230,145 @@ def plot_routes(instance, best_ind, output_path):
     # Return the path of the saved image
     return route_image_path
 
-def generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost, wait_cost, delay_cost, ind_size, output_path):
-    '''Generate LIME explanation for the best individual'''
-    explainer = LimeTabularExplainer(
-        training_data=X_np,
-        feature_names=[f'Customer {i}' for i in range(ind_size)],
-        mode='regression'
+def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path):
+    """
+    Generates LIME explanations and saves the explanation plot as an image.
+    """
+
+    # Check if best_ind_np is a single sample and reshape if necessary
+    if len(best_ind_np.shape) == 1:
+        print(f"Reshaping best_ind_np from {best_ind_np.shape} to (1, {best_ind_np.shape[0]})")
+        best_ind_np = best_ind_np.reshape(1, -1)
+
+    # Generate feature names based on the number of features in X_np (assuming feature count matches)
+    feature_names = [f'Feature {i}' for i in range(X_np.shape[1])]
+
+    # Ensure feature names match the number of columns in X_np
+    if X_np.shape[1] != len(feature_names):
+        print(f"Adjusting feature names length to match X_np features")
+        feature_names = feature_names[:X_np.shape[1]]
+
+    # LIME expects 2D data, so ensure best_ind_np is in the right shape (1 sample, N features)
+    if best_ind_np.shape[1] != X_np.shape[1]:
+        raise ValueError(f"Mismatch: best_ind_np has {best_ind_np.shape[1]} features, but X_np has {X_np.shape[1]} features")
+
+    # Initialize the LIME explainer for tabular data
+    explainer = lime.lime_tabular.LimeTabularExplainer(
+        X_np,  # Training data used to fit the explainer
+        feature_names=feature_names,
+        class_names=['Predicted Outcome'],  # Adjust based on your model
+        verbose=True,
+        mode='regression'  # or 'classification' depending on your model type
     )
 
-    # Define the prediction function for LIME
-    def lime_predict_fn(X):
-        return np.array(predict_fitness([list(x) for x in X], instance, unit_cost, init_cost, wait_cost, delay_cost))
+    # Pick the first sample from best_ind_np to explain (since LIME explains one instance at a time)
+    sample_to_explain = best_ind_np[0]
 
-    # Get LIME explanation for the best individual
-    explanation = explainer.explain_instance(best_ind_np[0], lime_predict_fn)
+    # Generate explanation for the selected sample
+    print(f"Generating LIME explanation for input with shape: {best_ind_np.shape}")
+    explanation = explainer.explain_instance(
+        sample_to_explain,
+        model.predict,  # Prediction function
+        num_features=len(feature_names)  # Number of features to show in the explanation
+    )
 
-    # Save LIME explanation to HTML
-    explanation_html = explanation.as_html()
-    explanation_html_file_path = os.path.join(output_path, 'lime_explanation.html')
-    with open(explanation_html_file_path, 'w', encoding='utf-8') as f:
-        f.write(explanation_html)
-    print(f'LIME explanation saved to {explanation_html_file_path}')
+    # Save the LIME explanation plot as an image
+    plt.figure()
+    explanation.save_to_file(f'{output_path}/lime_explanation.html')  # Save interactive HTML
+    explanation.as_pyplot_figure()  # Generate the plot
+    lime_plot_path = f"{output_path}/lime_explanation_plot.png"
+    plt.savefig(lime_plot_path)
+    plt.close()
 
-    return explanation_html_file_path
-
+    # Return paths to the saved files
+    return lime_plot_path
 
 def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path):
-    '''Generate SHAP explanations for the best individual and the entire dataset'''
-    shap_explainer = shap.TreeExplainer(model)
+    """
+    Generates SHAP explanations and saves the summary plot as an image.
+    """
+    # Initialize SHAP Explainer for your model
+    explainer = shap.Explainer(model, X_np)
 
-    # Local SHAP explanation for the best individual
-    shap_values_best = shap_explainer.shap_values(best_ind_np)
+    # Check if best_ind_np is a single sample and reshape if necessary
+    if len(best_ind_np.shape) == 1:
+        print(f"Reshaping best_ind_np from {best_ind_np.shape} to (1, {best_ind_np.shape[0]})")
+        best_ind_np = best_ind_np.reshape(1, -1)
 
-    # Save SHAP force plot as HTML
-    shap_html_file_path = os.path.join(output_path, 'shap_explanation.html')
-    shap.force_plot(shap_explainer.expected_value, shap_values_best, best_ind_np,
-                    feature_names=[f'Customer {i}' for i in range(ind_size)])
+    # Generate SHAP values for the best individual
+    print(f"Generating SHAP values for input with shape: {best_ind_np.shape}")
+    shap_values = explainer(best_ind_np)
 
-    # Save SHAP force plot to HTML
-    shap.save_html(shap_html_file_path, shap.force_plot(
-        shap_explainer.expected_value,
-        shap_values_best,
-        best_ind_np,
-        feature_names=[f'Customer {i}' for i in range(ind_size)]
-    ))
-    print(f'SHAP explanation saved to {shap_html_file_path}')
+    # Assuming feature_names is derived from X_np
+    feature_names = [f'Feature {i}' for i in range(X_np.shape[1])]
 
-    # Global SHAP feature importance plot
-    shap_values = shap_explainer.shap_values(X_np)
+    # Debugging prints to ensure everything aligns correctly
+    print(f"SHAP Values Shape: {shap_values.shape}")
+    print(f"X_np Shape: {X_np.shape}")
+    print(f"Feature Names Length: {len(feature_names)}")
 
-    # Plot and save global SHAP feature importance
+    # Ensure feature names match X_np's features
+    if X_np.shape[1] != len(feature_names):
+        print(f"Adjusting feature names length to match X_np features")
+        feature_names = feature_names[:X_np.shape[1]]  # Adjust to the correct length
+
+    # SHAP expects the number of rows in `X_np` to match the number of SHAP values' rows
+    # Check and raise an error if there's a mismatch
+    assert X_np.shape[1] == best_ind_np.shape[1], \
+        f"Feature mismatch: X_np has {X_np.shape[1]} features but best_ind_np has {best_ind_np.shape[1]} features!"
+
+    # Generate SHAP summary plot
     plt.figure()
-    shap.summary_plot(shap_values, X_np, feature_names=[f'Customer {i}' for i in range(ind_size)])
-    shap_summary_plot_path = os.path.join(output_path, 'shap_summary_plot.png')
+    shap.summary_plot(shap_values, best_ind_np, feature_names=feature_names)
+
+    # Save the SHAP summary plot as an image
+    shap_summary_plot_path = f"{output_path}/shap_summary_plot.png"
     plt.savefig(shap_summary_plot_path)
     plt.close()
-    print(f'SHAP summary plot saved to {shap_summary_plot_path}')
-    return shap_html_file_path, shap_summary_plot_path
+
+    # Return paths to the saved files
+    return shap_summary_plot_path
+
+
+def extract_features(ind, instance):
+    """
+    Extract meaningful features for an individual (route).
+    This could include distances, service times, demands, time windows, etc.
+    """
+    features = []
+    distance_matrix = instance['distance_matrix']  # Get the distance matrix from the instance
+    depot_index = 0  # Assuming the depot is represented by index 0 in the distance matrix
+
+    for i, customer_id in enumerate(ind):
+        customer_key = f"customer_{customer_id}"  # Convert customer_id to the correct key
+
+        # Check if the customer exists in the instance
+        if customer_key not in instance:
+            raise KeyError(f"Customer {customer_key} not found in the instance")
+
+        customer = instance[customer_key]  # Access customer directly from instance
+
+        # Distance to depot (assuming depot is at index 0)
+        distance_to_depot = distance_matrix[depot_index][customer_id]
+
+        # Distance to next customer (or back to the depot if it's the last customer)
+        if i < len(ind) - 1:
+            next_customer_id = ind[i + 1]
+            distance_to_next_customer = distance_matrix[customer_id][next_customer_id]
+        else:
+            distance_to_next_customer = distance_matrix[customer_id][depot_index]  # Distance back to depot
+
+        # Extract the relevant features from the customer
+        demand = customer['demand']
+        service_time = customer['service_time']
+        ready_time = customer['ready_time']
+        due_time = customer['due_time']
+        time_window_length = due_time - ready_time
+
+        # Add these features to the list (you can extend this with more features)
+        features.extend([distance_to_depot, distance_to_next_customer, demand, service_time, ready_time, due_time, time_window_length])
+
+    return features
 
 
 def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_size, pop_size, \
@@ -327,11 +410,14 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     fitnesses = list(map(toolbox.evaluate, pop))
     for ind, fit in zip(pop, fitnesses):
         ind.fitness.values = fit
-        X.append(ind)  # Collect individuals for model training
+
+        # Extract meaningful features instead of customer IDs
+        features = extract_features(ind, instance)
+        X.append(features)  # Collect features for model training
         y.append(fit[0])  # Collect fitness for model training
 
     # Convert collected data to numpy arrays
-    X_np = np.array([list(ind) for ind in X])
+    X_np = np.array(X)  # Now this is an array of meaningful features, not customer IDs
     y_np = np.array(y)
 
     # Train a model for LIME and SHAP explanations
@@ -387,13 +473,16 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
 
     # Save LIME and SHAP explanations
     output_path = os.path.join(BASE_DIR, 'results')
-    best_ind_np = np.array([list(best_ind)])
+    best_ind_np = np.array([extract_features(best_ind, instance)])  # Use meaningful features for best individual
 
     # Save the final routes plot
     route_image_path = plot_routes(instance, best_ind, output_path)
 
-    shap_html_path, shap_summary_plot_path=generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path)
-    lime_html_path =generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost, wait_cost, delay_cost, ind_size, output_path)
+    # Generate SHAP and LIME explanations
+    shap_summary_plot_path = generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path)
+
+    # Adjust generate_lime_explanation call to match the correct signature
+    lime_plot_path = generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path)
 
     if export_csv:
         csv_file_name = f'{instance_name}_uC{unit_cost}_iC{init_cost}_wC{wait_cost}' \
@@ -415,4 +504,5 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
                 writer.writeheader()
                 for csv_row in csv_data:
                     writer.writerow(csv_row)
-    return lime_html_path, shap_html_path, shap_summary_plot_path, route_image_path
+
+    return lime_plot_path, shap_summary_plot_path, route_image_path

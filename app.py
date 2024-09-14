@@ -38,32 +38,24 @@ export_csv = st.sidebar.checkbox("Export CSV", value=True)
 if st.sidebar.button("Run Algorithm"):
     st.write(f"Running the Genetic Algorithm for instance {instance_name}...")
 
-    # Call the run_gavrptw function with user inputs
-    lime_html_path, shap_html_path, shap_summary_plot_path, route_image_path=run_gavrptw(instance_name=instance_name, unit_cost=unit_cost, init_cost=init_cost, \
-                wait_cost=wait_cost, delay_cost=delay_cost, ind_size=ind_size, pop_size=pop_size, \
-                cx_pb=cx_pb, mut_pb=mut_pb, n_gen=n_gen, export_csv=export_csv)
+    # Call the run_gavrptw function with user inputs (without shap_html_path)
+    lime_plot_path, shap_summary_plot_path, route_image_path = run_gavrptw(
+        instance_name=instance_name, unit_cost=unit_cost, init_cost=init_cost,
+        wait_cost=wait_cost, delay_cost=delay_cost, ind_size=ind_size,
+        pop_size=pop_size, cx_pb=cx_pb, mut_pb=mut_pb, n_gen=n_gen,
+        export_csv=export_csv
+    )
 
     st.write("Algorithm finished running!")
 
-    print(route_image_path)
-
-    # Display the final routes plot at the beginning
+    # Display the final routes plot
     if route_image_path and os.path.exists(route_image_path):
         st.image(route_image_path, caption="Final Optimized Routes", use_column_width=True)
 
-    # Display the LIME explanation
-    if os.path.exists(lime_html_path):
-        with open(lime_html_path, 'r', encoding='utf-8') as f:
-            lime_html_content = f.read()
-        st.write("### LIME Explanation for Best Individual")
-        st_components.html(lime_html_content, height=800)
-
-    # Display the SHAP explanation
-    if os.path.exists(shap_html_path):
-        with open(shap_html_path, 'r', encoding='utf-8') as f:
-            shap_html_content = f.read()
-        st.write("### SHAP Explanation for Best Individual")
-        st_components.html(shap_html_content, height=800)
+    # Display the LIME explanation plot
+    if os.path.exists(lime_plot_path):
+        st.write("###LIME explanation Plot")
+        st.image(lime_plot_path)
 
     # Display the SHAP summary plot
     if os.path.exists(shap_summary_plot_path):
