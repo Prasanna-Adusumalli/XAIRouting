@@ -149,6 +149,81 @@ def predict_fitness(individuals, instance, unit_cost, init_cost, wait_cost, dela
         fitnesses.append(fitness)
     return fitnesses
 
+def plot_routes(instance, best_ind, output_path):
+    # Extract customers from the instance based on keys starting with 'customer_'
+    customers = {key: value for key, value in instance.items() if key.startswith('customer_')}
+
+    # Check if there's an implicit depot node (node 0)
+    depot_node = 'node_0'
+    if depot_node not in instance:
+        print("Warning: No explicit depot found. Assuming node 0 as the depot.")
+        depot = {
+            "coordinates": {"x": 0.0, "y": 0.0},  # Default values or you can set actual coordinates
+            "demand": 0.0,
+            "due_time": 0.0,
+            "ready_time": 0.0,
+            "service_time": 0.0
+        }
+    else:
+        depot = instance[depot_node]
+
+    # Print depot information (for debugging)
+    print("Depot information:", depot)
+
+    # Extract coordinates for depot and customers
+    coordinates = []
+    labels = []
+
+    # Add depot
+    coordinates.append((depot['coordinates']['x'], depot['coordinates']['y']))
+    labels.append('Depot')
+
+    # Map customer indices to coordinates
+    customer_indices = {}
+    for index, (key, value) in enumerate(customers.items(), start=1):  # Start from 1 assuming depot is 0
+        coordinates.append((value['coordinates']['x'], value['coordinates']['y']))
+        labels.append(key)
+        customer_indices[index] = len(coordinates) - 1  # Map index to coordinates
+
+    # Plot the routes
+    plt.figure(figsize=(10, 8))
+
+    # Plot depot
+    plt.scatter(*zip(*coordinates), color='red', label='Depot')
+
+    # Plot customers
+    plt.scatter(*zip(*coordinates[1:]), color='blue', label='Customers')
+
+    # Plot routes
+    for route in best_ind:
+        if isinstance(route, int):  # If route is just a single index
+            route_coords = [coordinates[route]]
+            plt.plot(*zip(*route_coords), marker='o', color='green')
+        else:  # Route is a list of indices
+            route_coords = [coordinates[customer_indices[i]] for i in route]
+            plt.plot(*zip(*route_coords), marker='o')
+
+    # Add labels
+    for i, label in enumerate(labels):
+        plt.text(coordinates[i][0], coordinates[i][1], label, fontsize=9, ha='right')
+
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+    plt.title('Routes')
+    plt.legend()
+    plt.grid(True)
+
+    route_image_filename = 'route_image.png'
+    route_image_path = os.path.join(output_path, route_image_filename)
+
+    # Save the plot
+    plt.savefig(route_image_path)
+    plt.close()  # Close the plot to avoid display if not needed
+
+    # Return the path of the saved image
+    return route_image_path
+
+
 def generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost, wait_cost, delay_cost, ind_size, output_path):
     '''Generate LIME explanation for the best individual'''
     explainer = LimeTabularExplainer(
@@ -170,6 +245,8 @@ def generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost,
     with open(explanation_html_file_path, 'w', encoding='utf-8') as f:
         f.write(explanation_html)
     print(f'LIME explanation saved to {explanation_html_file_path}')
+
+    return explanation_html_file_path
 
 
 def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path):
@@ -203,6 +280,7 @@ def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path):
     plt.savefig(shap_summary_plot_path)
     plt.close()
     print(f'SHAP summary plot saved to {shap_summary_plot_path}')
+    return shap_html_file_path, shap_summary_plot_path
 
 
 def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_size, pop_size, \
@@ -306,8 +384,11 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
     output_path = os.path.join(BASE_DIR, 'results')
     best_ind_np = np.array([list(best_ind)])
 
-    generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path)
-    generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost, wait_cost, delay_cost, ind_size, output_path)
+    # Save the final routes plot
+    route_image_path = plot_routes(instance, best_ind, output_path)
+
+    shap_html_path, shap_summary_plot_path=generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path)
+    lime_html_path =generate_lime_explanation(X_np, best_ind_np, instance, unit_cost, init_cost, wait_cost, delay_cost, ind_size, output_path)
 
     if export_csv:
         csv_file_name = f'{instance_name}_uC{unit_cost}_iC{init_cost}_wC{wait_cost}' \
@@ -329,3 +410,4 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
                 writer.writeheader()
                 for csv_row in csv_data:
                     writer.writerow(csv_row)
+    return lime_html_path, shap_html_path, shap_summary_plot_path, route_image_path
