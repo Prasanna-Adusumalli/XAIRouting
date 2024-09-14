@@ -332,43 +332,41 @@ def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path):
 
 def extract_features(ind, instance):
     """
-    Extract meaningful features for an individual (route).
-    This could include distances, service times, demands, time windows, etc.
+    Extract meaningful features from an individual and the problem instance.
     """
-    features = []
-    distance_matrix = instance['distance_matrix']  # Get the distance matrix from the instance
-    depot_index = 0  # Assuming the depot is represented by index 0 in the distance matrix
+    # Features related to the customers
+    total_demand = sum([instance['customer_' + str(i)]['demand'] for i in ind])  # Sum of demands
+    total_service_time = sum([instance['customer_' + str(i)]['service_time'] for i in ind])  # Total service time
+    total_ready_time = sum([instance['customer_' + str(i)]['ready_time'] for i in ind])  # Sum of ready times
+    total_due_time = sum([instance['customer_' + str(i)]['due_time'] for i in ind])  # Sum of due times
 
-    for i, customer_id in enumerate(ind):
-        customer_key = f"customer_{customer_id}"  # Convert customer_id to the correct key
+    # Route-level features using the distance matrix
+    total_route_distance = sum([instance['distance_matrix'][i][j] for i, j in zip(ind[:-1], ind[1:])])  # Total distance
+    avg_distance_per_customer = total_route_distance / (len(ind) - 1)  # Average distance
+    max_distance = max([instance['distance_matrix'][i][j] for i, j in zip(ind[:-1], ind[1:])])  # Max distance
+    min_distance = min([instance['distance_matrix'][i][j] for i, j in zip(ind[:-1], ind[1:])])  # Min distance
 
-        # Check if the customer exists in the instance
-        if customer_key not in instance:
-            raise KeyError(f"Customer {customer_key} not found in the instance")
+    # Calculate violations (e.g., late arrivals beyond due_time)
+    time_window_violations = sum([1 for i in ind if instance['customer_' + str(i)]['ready_time'] > instance['customer_' + str(i)]['due_time']])
 
-        customer = instance[customer_key]  # Access customer directly from instance
+    # Vehicle capacity
+    vehicle_capacity = instance['vehicle_capacity']
+    max_vehicle_number = instance['max_vehicle_number']
 
-        # Distance to depot (assuming depot is at index 0)
-        distance_to_depot = distance_matrix[depot_index][customer_id]
-
-        # Distance to next customer (or back to the depot if it's the last customer)
-        if i < len(ind) - 1:
-            next_customer_id = ind[i + 1]
-            distance_to_next_customer = distance_matrix[customer_id][next_customer_id]
-        else:
-            distance_to_next_customer = distance_matrix[customer_id][depot_index]  # Distance back to depot
-
-        # Extract the relevant features from the customer
-        demand = customer['demand']
-        service_time = customer['service_time']
-        ready_time = customer['ready_time']
-        due_time = customer['due_time']
-        time_window_length = due_time - ready_time
-
-        # Add these features to the list (you can extend this with more features)
-        features.extend([distance_to_depot, distance_to_next_customer, demand, service_time, ready_time, due_time, time_window_length])
-
-    return features
+    # Return the feature list
+    return [
+        total_demand,               # Total demand on the route
+        total_service_time,          # Total service time
+        total_ready_time,            # Total ready time
+        total_due_time,              # Total due time
+        total_route_distance,        # Total distance traveled
+        avg_distance_per_customer,   # Average distance between customers
+        max_distance,                # Maximum distance between any two consecutive customers
+        min_distance,                # Minimum distance between any two consecutive customers
+        time_window_violations,      # Number of time window violations
+        vehicle_capacity,            # Maximum vehicle capacity
+        max_vehicle_number           # Maximum number of vehicles
+    ]
 
 
 def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_size, pop_size, \
