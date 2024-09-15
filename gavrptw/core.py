@@ -270,10 +270,16 @@ def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path, f
 
     # Save the LIME explanation plot as an image
     explanation.save_to_file(f'{output_path}/lime_explanation.html')  # Save interactive HTML
+
+    # Adjust the plot to ensure labels are visible
     plt.figure()
-    explanation.as_pyplot_figure()  # Generate the plot
+    fig = explanation.as_pyplot_figure()  # Generate the plot
+
+    # Adjust margins to ensure the left side labels are fully visible
+    fig.subplots_adjust(left=0.3)  # Increase the left margin to 0.3 (adjust this value if needed)
+
     lime_plot_path = f"{output_path}/lime_explanation_plot.png"
-    plt.savefig(lime_plot_path)
+    plt.savefig(lime_plot_path, bbox_inches='tight')  # Use bbox_inches='tight' to ensure nothing is cut off
     plt.close()
 
     # Return paths to the saved files
@@ -416,7 +422,7 @@ def run_gavrptw(instance_name, unit_cost, init_cost, wait_cost, delay_cost, ind_
         'Total Ready Time',
         'Total Due Time',
         'Total Route Distance',
-        'Average Distance per Customer',
+        'Avg Dist per Customer',
         'Max Distance',
         'Min Distance',
         'Time Window Violations',

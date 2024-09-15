@@ -11415,6 +11415,6 @@
     ]
   ],
   "instance_name": "Test101",
-  "max_vehicle_number": 10,
-  "vehicle_capacity": 200.0
+  "max_vehicle_number": 5,
+  "vehicle_capacity": 10000.0
 }
