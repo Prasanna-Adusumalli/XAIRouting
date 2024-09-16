@@ -37089,25 +37089,25 @@
 /***/ })
 /******/ ]);
 //# sourceMappingURL=bundle.js.map </script></head><body>
-        <div class="lime top_div" id="top_divHVDOCKLJ6748I87"></div>
+        <div class="lime top_div" id="top_div9KR28MS7ZFFUES7"></div>
         
         <script>
-        var top_div = d3.select('#top_divHVDOCKLJ6748I87').classed('lime top_div', true);
+        var top_div = d3.select('#top_div9KR28MS7ZFFUES7').classed('lime top_div', true);
         
         
                     var pp_div = top_div.append('div')
                                         .classed('lime predicted_value', true);
                     var pp_svg = pp_div.append('svg').style('width', '100%');
-                    var pp = new lime.PredictedValue(pp_svg, 1.7225628091560843e-05, 1.4156006564499303e-05, 1.7506405964693646e-05);
+                    var pp = new lime.PredictedValue(pp_svg, 1.7543292724390406e-05, 1.7543292724390406e-05, 1.7575997143789495e-05);
                     
         var exp_div;
             var exp = new lime.Explanation(["negative", "positive"]);
         
             exp_div = top_div.append('div').classed('lime explanation', true);
-            exp.show([["4.00 < Min Distance <= 5.00", -2.9368114433687796e-07], ["4006.61 < Total Route Distance <= 4136.00", -1.6406535896726264e-07], ["40.47 < Avg Dist per Customer <= 41.78", -1.5437031225526073e-07], ["88.48 < Max Distance <= 91.79", 3.8320627744587204e-08], ["Total Demand <= 1810.00", 0.0], ["Total Service Time <= 9000.00", 0.0], ["Total Ready Time <= 39959.00", 0.0], ["Total Due Time <= 289217.00", 0.0], ["Time Window Violations <= 0.00", 0.0], ["Vehicle Capacity <= 700.00", 0.0], ["Max Vehicle Number <= 25.00", 0.0]], 1, exp_div);
+            exp.show([["Min Distance", 3.428721066629153e-11], ["Avg Dist per Customer", 7.841534110306157e-12], ["Max Distance", -7.19044028046179e-12], ["Vehicle Capacity", 7.17628902396685e-12], ["Total Ready Time", -5.166864059494868e-12], ["Total Due Time", 5.165900197902317e-12], ["Total Route Distance", 4.240901000976571e-12], ["Total Service Time", -2.6281137635432605e-12], ["Max Vehicle Number", 2.5726703967435487e-12], ["Total Demand", -3.534004602040526e-13], ["Time Window Violations", 1.7773037704620162e-13]], 1, exp_div);
             
         var raw_div = top_div.append('div');
-            exp.show_raw_tabular([["Min Distance", "5.00", -2.9368114433687796e-07], ["Total Route Distance", "4051.10", -1.6406535896726264e-07], ["Avg Dist per Customer", "40.92", -1.5437031225526073e-07], ["Max Distance", "89.19", 3.8320627744587204e-08], ["Total Demand", "1810.00", 0.0], ["Total Service Time", "9000.00", 0.0], ["Total Ready Time", "39959.00", 0.0], ["Total Due Time", "289217.00", 0.0], ["Time Window Violations", "0.00", 0.0], ["Vehicle Capacity", "700.00", 0.0], ["Max Vehicle Number", "25.00", 0.0]], 1, raw_div);
+            exp.show_raw_tabular([["Min Distance", "-1.35", 3.428721066629153e-11], ["Avg Dist per Customer", "-1.69", 7.841534110306157e-12], ["Max Distance", "0.21", -7.19044028046179e-12], ["Vehicle Capacity", "0.00", 7.17628902396685e-12], ["Total Ready Time", "0.00", -5.166864059494868e-12], ["Total Due Time", "0.00", 5.165900197902317e-12], ["Total Route Distance", "-1.69", 4.240901000976571e-12], ["Total Service Time", "0.00", -2.6281137635432605e-12], ["Max Vehicle Number", "0.00", 2.5726703967435487e-12], ["Total Demand", "0.00", -3.534004602040526e-13], ["Time Window Violations", "0.00", 1.7773037704620162e-13]], 1, raw_div);
         
         </script>
         </body></html>

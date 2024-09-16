@@ -14,6 +14,9 @@ from deap import base, creator, tools
 from lime.lime_tabular import LimeTabularExplainer
 from matplotlib import pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Ridge
+from sklearn.preprocessing import StandardScaler
+from sklearn.tree import DecisionTreeRegressor
 
 from . import BASE_DIR
 from .utils import make_dirs_for_file, exist, load_instance, merge_rules
@@ -248,24 +251,35 @@ def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path, f
     if best_ind_np.shape[1] != X_np.shape[1]:
         raise ValueError(f"Mismatch: best_ind_np has {best_ind_np.shape[1]} features, but X_np has {X_np.shape[1]} features")
 
-    # Initialize the LIME explainer for tabular data
+    # Scale features before generating explanations
+    scaler = StandardScaler()
+    X_np_scaled = scaler.fit_transform(X_np)
+    best_ind_np_scaled = scaler.transform(best_ind_np)
+
+    # Initialize the LIME explainer for tabular data with improved settings
     explainer = lime.lime_tabular.LimeTabularExplainer(
-        X_np,  # Training data used to fit the explainer
+        X_np_scaled,  # Training data used to fit the explainer
         feature_names=feature_names,
         class_names=['Predicted Outcome'],  # Adjust based on your model
         verbose=True,
-        mode='regression'  # or 'classification' depending on your model type
+        mode='regression',  # or 'classification' depending on your model type
+        sample_around_instance=True,  # Ensure samples are created around the instance
+        kernel_width=3.0,  # Adjusted kernel width
+        discretize_continuous=False,  # Turn off discretization to preserve more data details
+        random_state=42  # For reproducibility
     )
 
     # Pick the first sample from best_ind_np to explain (since LIME explains one instance at a time)
-    sample_to_explain = best_ind_np[0]
+    sample_to_explain = best_ind_np_scaled[0]
 
-    # Generate explanation for the selected sample
-    print(f"Generating LIME explanation for input with shape: {best_ind_np.shape}")
+    # Generate explanation for the selected sample with Ridge regression as the surrogate model
+    print(f"Generating LIME explanation for input with shape: {best_ind_np_scaled.shape}")
     explanation = explainer.explain_instance(
         sample_to_explain,
         model.predict,  # Prediction function
-        num_features=len(feature_names)  # Number of features to show in the explanation
+        num_features=len(feature_names),  # Number of features to show in the explanation
+        model_regressor=Ridge(alpha=1.0),  # Using Ridge regression as the surrogate model
+        num_samples=5000  # Set num_samples here, during explanation generation
     )
 
     # Save the LIME explanation plot as an image
@@ -284,7 +298,6 @@ def generate_lime_explanation(model, X_np, best_ind_np, ind_size, output_path, f
 
     # Return paths to the saved files
     return lime_plot_path
-
 
 def generate_shap_explanation(model, X_np, best_ind_np, ind_size, output_path, feature_names):
     """
